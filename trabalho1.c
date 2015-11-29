@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#define VECSIZE 16
+#define VECSIZE 18
 #define NTHREADS 4
 
 int tmp[NTHREADS];
@@ -11,21 +11,32 @@ int vector_a[VECSIZE];
 int vector_b[VECSIZE];
 int sum = 0;
 
+int slice = (VECSIZE/NTHREADS);
+int rest = VECSIZE % NTHREADS;
+
 struct config {
 	int id;
-    int begin;
-    int end;
 };
 
 void *func_thread(void *args) {
 	struct config *cfg = args;
 
-	for(int i=cfg->begin; i <= cfg->end; i++)
-		tmp[cfg->id-1] += vector_a[i] * vector_b[i];
+	int id = cfg->id;
+    int begin = (id-1) * slice;
+    int end = 0;
+
+    if (id == NTHREADS) {
+    	end = ((id-1) * slice) + slice-1 + rest;
+    } else {
+    	end = ((id-1) * slice) + slice-1;
+    }
+
+	for(int i=begin; i <= end; i++)
+		tmp[id-1] += vector_a[i] * vector_b[i];
 
 	char *msg = "Thread %d calculou de %d a %d: produto escalar parcial = %d\n";
 
-	printf(msg, cfg->id, cfg->begin, cfg->end, tmp[cfg->id-1]);
+	printf(msg, id, begin, end, tmp[id-1]);
 	
 	return 0;
 }
@@ -52,9 +63,6 @@ int main(int argc, char **argv) {
 		return 1;
 	} 
 
-	int rest = VECSIZE % NTHREADS;
-	int slice = (VECSIZE/NTHREADS);
-
 	init_vector(vector_a, "A");
 	init_vector(vector_b, "B");
 
@@ -63,10 +71,7 @@ int main(int argc, char **argv) {
 	for(int i=1; i < NTHREADS+1; i++) {
 		cfg = malloc(sizeof(struct config));
         (*cfg).id = i;
-        (*cfg).begin = (i-1) * slice;
-        (*cfg).end = ((i-1) * slice) + slice-1;
-
-		pthread_create(&threads[i-1], NULL, func_thread, (void *)cfg);
+		pthread_create(&threads[i-1], NULL, func_thread, (void*) cfg);
 	}
 
 	for(int i=0; i < NTHREADS; i++) {
